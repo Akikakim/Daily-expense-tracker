@@ -1,6 +1,7 @@
 import React from 'react';
 // FIX: Changed 'import type' to a regular import to allow using the enum as a value.
 import { Category } from './types';
+import type { Currency } from './types';
 import { FoodIcon, TransportIcon, HousingIcon, UtilitiesIcon, EntertainmentIcon, HealthIcon, ShoppingIcon, OtherIcon } from './components/Icons';
 
 export const CATEGORIES: Category[] = [
@@ -24,3 +25,11 @@ export const CATEGORY_DETAILS: Record<Category, { icon: React.FC<React.SVGProps<
     [Category.Shopping]: { icon: ShoppingIcon, color: 'bg-pink-500' },
     [Category.Other]: { icon: OtherIcon, color: 'bg-gray-500' },
 };
+
+export const CURRENCIES: Currency[] = [
+    { code: 'USD', name: 'United States Dollar', symbol: '$' },
+    { code: 'EUR', name: 'Euro', symbol: '€' },
+    { code: 'JPY', name: 'Japanese Yen', symbol: '¥' },
+    { code: 'GBP', name: 'British Pound Sterling', symbol: '£' },
+    { code: 'PKR', name: 'Pakistani Rupee', symbol: '₨' },
+];

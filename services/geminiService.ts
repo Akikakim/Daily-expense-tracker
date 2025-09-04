@@ -1,6 +1,5 @@
-
 import { GoogleGenAI } from "@google/genai";
-import type { Expense } from "../types";
+import type { Expense, Currency } from "../types";
 
 const API_KEY = process.env.API_KEY;
 
@@ -10,7 +9,7 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
-export const generateInsights = async (expenses: Expense[], timePeriod: string): Promise<string> => {
+export const generateInsights = async (expenses: Expense[], timePeriod: string, currency: Currency): Promise<string> => {
     if (!API_KEY) {
         return Promise.resolve("AI features are disabled because the API key is not configured.");
     }
@@ -21,6 +20,7 @@ export const generateInsights = async (expenses: Expense[], timePeriod: string):
 
     const prompt = `
         You are a friendly and insightful financial assistant. 
+        The user's currency is ${currency.name} (${currency.code}). When you mention any monetary values, please use the symbol: ${currency.symbol}.
         Based on the following expense data for the last ${timePeriod}, provide a brief summary of spending habits and offer 3 actionable, personalized tips for saving money. 
         Format your response in Markdown. Use headings for the summary and tips. Use bullet points for the tips. Keep the tone encouraging and helpful.
 

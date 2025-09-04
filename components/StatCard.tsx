@@ -1,15 +1,16 @@
-
 import React from 'react';
+import type { Currency } from '../types';
 
 interface StatCardProps {
     title: string;
     value: number;
+    currency: Currency;
     isCurrency?: boolean;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, isCurrency = true }) => {
+export const StatCard: React.FC<StatCardProps> = ({ title, value, currency, isCurrency = true }) => {
     const formattedValue = isCurrency
-        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(value)
         : value.toLocaleString();
 
     return (

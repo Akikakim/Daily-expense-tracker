@@ -1,4 +1,3 @@
-
 export enum Category {
     Food = 'Food',
     Transport = 'Transport',
@@ -23,4 +22,21 @@ export enum TimeView {
     Weekly = 'Weekly',
     Monthly = 'Monthly',
     Yearly = 'Yearly'
+}
+
+export interface User {
+    id: string;
+    username: string;
+    password?: string; // Only used for storage, not passed around
+}
+
+export interface Budget {
+    category: Category;
+    amount: number;
+}
+
+export interface Currency {
+    code: string;
+    name: string;
+    symbol: string;
 }

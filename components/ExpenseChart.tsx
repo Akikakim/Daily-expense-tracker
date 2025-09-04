@@ -1,17 +1,17 @@
-
 import React from 'react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { CATEGORY_DETAILS } from '../constants';
-import { Category } from '../types';
+import { Category, Currency } from '../types';
 
 interface ExpenseChartProps {
     data: { name: string; value: number }[];
+    currency: Currency;
 }
 
 const COLORS = Object.values(CATEGORY_DETAILS).map(c => c.color.replace('bg-', '#').replace('-500', ''));
 
 
-export const ExpenseChart: React.FC<ExpenseChartProps> = ({ data }) => {
+export const ExpenseChart: React.FC<ExpenseChartProps> = ({ data, currency }) => {
     const chartData = data.map(item => {
         const categoryKey = item.name as Category;
         const colorClass = CATEGORY_DETAILS[categoryKey]?.color || 'bg-gray-500';
@@ -45,7 +45,7 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({ data }) => {
                             <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                     </Pie>
-                    <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
+                    <Tooltip formatter={(value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(value)} />
                     <Legend />
                 </PieChart>
             </ResponsiveContainer>

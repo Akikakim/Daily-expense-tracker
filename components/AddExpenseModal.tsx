@@ -1,8 +1,8 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import type { Expense } from '../types';
 import { Category } from '../types';
 import { CATEGORIES } from '../constants';
+import { AuthContext } from '../contexts/AuthContext';
 
 interface AddExpenseModalProps {
     isOpen: boolean;
@@ -17,6 +17,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
     const [category, setCategory] = useState<Category>(Category.Food);
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
+    const { currency } = useContext(AuthContext);
 
     useEffect(() => {
         if (expenseToEdit) {
@@ -57,7 +58,7 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity" onClick={onClose}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity" onClick={onClose} role="dialog" aria-modal="true">
             <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md m-4 transform transition-transform scale-100" onClick={e => e.stopPropagation()}>
                 <h2 className="text-2xl font-bold mb-6 text-slate-800">{expenseToEdit ? 'Edit Expense' : 'Add New Expense'}</h2>
                 {error && <p className="bg-red-100 text-red-700 p-3 rounded-md mb-4">{error}</p>}
@@ -68,7 +69,12 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
                     </div>
                     <div>
                         <label htmlFor="amount" className="block text-sm font-medium text-slate-600">Amount</label>
-                        <input type="number" id="amount" value={amount} onChange={e => setAmount(e.target.value)} step="0.01" className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="0.00" />
+                        <div className="relative mt-1">
+                            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                <span className="text-gray-500 sm:text-sm">{currency.symbol}</span>
+                            </div>
+                            <input type="number" id="amount" value={amount} onChange={e => setAmount(e.target.value)} step="0.01" className="block w-full rounded-md border-slate-300 pl-7 pr-12 shadow-sm focus:border-primary-500 focus:ring-primary-500" placeholder="0.00" />
+                        </div>
                     </div>
                     <div>
                         <label htmlFor="category" className="block text-sm font-medium text-slate-600">Category</label>
