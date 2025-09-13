@@ -15,15 +15,15 @@ export const CATEGORIES: Category[] = [
     Category.Other,
 ];
 
-export const CATEGORY_DETAILS: Record<Category, { icon: React.FC<React.SVGProps<SVGSVGElement>>; color: string }> = {
-    [Category.Food]: { icon: FoodIcon, color: 'bg-emerald-500' },
-    [Category.Transport]: { icon: TransportIcon, color: 'bg-blue-500' },
-    [Category.Housing]: { icon: HousingIcon, color: 'bg-orange-500' },
-    [Category.Utilities]: { icon: UtilitiesIcon, color: 'bg-yellow-500' },
-    [Category.Entertainment]: { icon: EntertainmentIcon, color: 'bg-purple-500' },
-    [Category.Health]: { icon: HealthIcon, color: 'bg-red-500' },
-    [Category.Shopping]: { icon: ShoppingIcon, color: 'bg-pink-500' },
-    [Category.Other]: { icon: OtherIcon, color: 'bg-gray-500' },
+export const CATEGORY_DETAILS: Record<Category, { icon: React.FC<React.SVGProps<SVGSVGElement>>; color: string; hexColor: string; }> = {
+    [Category.Food]: { icon: FoodIcon, color: 'bg-emerald-500', hexColor: '#10b981' },
+    [Category.Transport]: { icon: TransportIcon, color: 'bg-blue-500', hexColor: '#3b82f6' },
+    [Category.Housing]: { icon: HousingIcon, color: 'bg-orange-500', hexColor: '#f97316' },
+    [Category.Utilities]: { icon: UtilitiesIcon, color: 'bg-yellow-500', hexColor: '#eab308' },
+    [Category.Entertainment]: { icon: EntertainmentIcon, color: 'bg-purple-500', hexColor: '#8b5cf6' },
+    [Category.Health]: { icon: HealthIcon, color: 'bg-red-500', hexColor: '#ef4444' },
+    [Category.Shopping]: { icon: ShoppingIcon, color: 'bg-pink-500', hexColor: '#ec4899' },
+    [Category.Other]: { icon: OtherIcon, color: 'bg-gray-500', hexColor: '#6b7280' },
 };
 
 export const CURRENCIES: Currency[] = [

@@ -8,6 +8,7 @@ import { AuthContext } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { LicenseScreen } from './components/LicenseScreen';
 import { CURRENCIES } from './constants';
+import parseISO from 'date-fns/parseISO';
 
 const AuthenticatedApp: React.FC = () => {
     const { 
@@ -25,6 +26,7 @@ const AuthenticatedApp: React.FC = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [currentDate, setCurrentDate] = useState(new Date());
 
     const handleOpenModal = (expense?: Expense) => {
         setExpenseToEdit(expense || null);
@@ -42,6 +44,8 @@ const AuthenticatedApp: React.FC = () => {
         } else {
             addExpense(expense);
         }
+        // Switch the dashboard view to the month of the saved expense
+        setCurrentDate(parseISO(expense.date));
         handleCloseModal();
     };
     
@@ -186,6 +190,8 @@ const AuthenticatedApp: React.FC = () => {
                     getAIInsights={getAIInsights}
                     aiInsight={aiInsight}
                     isAIInsightLoading={isAIInsightLoading}
+                    currentDate={currentDate}
+                    setCurrentDate={setCurrentDate}
                 />
             </main>
             <footer className="py-4 text-center text-sm text-slate-500">

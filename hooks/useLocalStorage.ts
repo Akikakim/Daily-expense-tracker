@@ -1,18 +1,25 @@
-
-
 import { useState, useEffect } from 'react';
 
-export const useLocalStorage = <T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+// FIX: Update hook to support lazy initialization for the initialValue, similar to useState.
+export const useLocalStorage = <T,>(key: string, initialValue: T | (() => T)): [T, React.Dispatch<React.SetStateAction<T>>] => {
     const readValue = () => {
-        if (typeof window === 'undefined') {
+        // Helper to get initial value, executing if it's a function
+        const getInitial = () => {
+            if (typeof initialValue === 'function') {
+                return (initialValue as () => T)();
+            }
             return initialValue;
+        };
+
+        if (typeof window === 'undefined') {
+            return getInitial();
         }
         try {
             const item = window.localStorage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
+            return item ? JSON.parse(item) : getInitial();
         } catch (error) {
             console.warn(`Error reading localStorage key "${key}":`, error);
-            return initialValue;
+            return getInitial();
         }
     };
 

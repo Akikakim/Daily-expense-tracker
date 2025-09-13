@@ -81,7 +81,7 @@ export const scanReceipt = async (base64ImageDataWithPrefix: string): Promise<Sc
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: { parts: [imagePart, textPart] },
+            contents: [{ parts: [imagePart, textPart] }],
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {

@@ -17,9 +17,9 @@ export const LicenseScreen: React.FC = () => {
         setIsLoading(true);
 
         try {
-            const success = await auth!.activateLicense(licenseKey);
+            const { success, message } = await auth!.activateLicense(licenseKey);
             if (!success) {
-                setError('Invalid or incorrect license key.');
+                setError(message || 'Invalid or incorrect license key.');
             }
         } catch (err) {
             setError('An unexpected error occurred during activation.');

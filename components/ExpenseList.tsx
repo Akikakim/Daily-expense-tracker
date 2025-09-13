@@ -2,9 +2,8 @@ import React from 'react';
 import type { Expense, Currency } from '../types';
 import { CATEGORY_DETAILS } from '../constants';
 import { EditIcon, DeleteIcon } from './Icons';
-// FIX: Changed import for parseISO from date-fns to be more specific to resolve module error.
-import { format } from 'date-fns';
-import parseISO from 'date-fns/parseISO';
+// FIX: Changed date-fns imports to use named imports from the main package to resolve module resolution issues.
+import { format, parseISO } from 'date-fns';
 
 interface ExpenseListProps {
     expenses: Expense[];

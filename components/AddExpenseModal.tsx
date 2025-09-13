@@ -5,6 +5,8 @@ import { CATEGORIES } from '../constants';
 import { AuthContext } from '../contexts/AuthContext';
 import { scanReceipt } from '../services/geminiService';
 import { CameraIcon } from './Icons';
+// FIX: Changed date-fns import to use a named import from the main package to resolve module resolution issues.
+import { format } from 'date-fns';
 
 interface AddExpenseModalProps {
     isOpen: boolean;
@@ -81,9 +83,24 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
             try {
                 const base64String = reader.result as string;
                 const scannedData = await scanReceipt(base64String);
+
+                let formattedDate = format(new Date(), 'yyyy-MM-dd'); // Default to today
+                if (scannedData.date) {
+                    // Gemini should return YYYY-MM-DD, but this handles other common formats just in case.
+                    // The Date constructor can be inconsistent. Replacing hyphens with slashes improves parsing reliability.
+                    const dateStringForParsing = scannedData.date.includes('T') 
+                        ? scannedData.date 
+                        : scannedData.date.replace(/-/g, '/');
+                    const parsedDate = new Date(dateStringForParsing);
+                    
+                    if (!isNaN(parsedDate.getTime())) {
+                        formattedDate = format(parsedDate, 'yyyy-MM-dd');
+                    }
+                }
+
                 setTitle(scannedData.title);
                 setAmount(scannedData.amount.toString());
-                setDate(scannedData.date.split('T')[0]); // Ensure format is YYYY-MM-DD
+                setDate(formattedDate);
                 setCategory(scannedData.category);
             } catch (err: any) {
                 setError(err.message || 'Failed to scan receipt.');

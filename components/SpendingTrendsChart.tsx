@@ -1,10 +1,14 @@
 import React, { useMemo } from 'react';
 import type { Expense, Currency } from '../types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { format, isAfter } from 'date-fns';
-import subMonths from 'date-fns/subMonths';
-import startOfMonth from 'date-fns/startOfMonth';
-import parseISO from 'date-fns/parseISO';
+// FIX: Changed date-fns imports to use named imports from the main package to resolve module resolution issues.
+import { 
+    format,
+    isAfter,
+    subMonths,
+    startOfMonth,
+    parseISO
+} from 'date-fns';
 import { TrendingUpIcon } from './Icons';
 
 interface SpendingTrendsChartProps {
@@ -23,10 +27,10 @@ export const SpendingTrendsChart: React.FC<SpendingTrendsChartProps> = ({ allExp
             const date = subMonths(now, i);
             const monthKey = format(date, 'yyyy-MM');
             const monthLabel = format(date, 'MMM yy');
-            data[monthKey] = 0;
             if (!monthLabels.includes(monthLabel)) {
                 monthLabels.push(monthLabel);
             }
+            data[monthKey] = 0;
         }
 
         const sixMonthsAgo = startOfMonth(subMonths(now, 5));

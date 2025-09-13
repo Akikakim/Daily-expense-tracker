@@ -8,14 +8,10 @@ interface ExpenseChartProps {
     currency: Currency;
 }
 
-const COLORS = Object.values(CATEGORY_DETAILS).map(c => c.color.replace('bg-', '#').replace('-500', ''));
-
-
 export const ExpenseChart: React.FC<ExpenseChartProps> = ({ data, currency }) => {
     const chartData = data.map(item => {
         const categoryKey = item.name as Category;
-        const colorClass = CATEGORY_DETAILS[categoryKey]?.color || 'bg-gray-500';
-        const hexColor = colorClass.replace('bg-', '#').replace('-500', '');
+        const hexColor = CATEGORY_DETAILS[categoryKey]?.hexColor || '#6b7280'; // Default to gray
         return { ...item, color: hexColor };
     });
     
