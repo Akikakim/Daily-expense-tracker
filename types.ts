@@ -40,3 +40,10 @@ export interface Currency {
     name: string;
     symbol: string;
 }
+
+export interface Goal {
+    id: string;
+    title: string;
+    targetAmount: number;
+    aiPlan?: string;
+}

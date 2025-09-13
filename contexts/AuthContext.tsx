@@ -10,7 +10,7 @@ interface AuthContextType {
     logout: () => void;
     isLoading: boolean;
     currency: Currency;
-    setCurrency: (currency: Currency) => void;
+    setCurrency: React.Dispatch<React.SetStateAction<Currency>>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -19,24 +19,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [users, setUsers] = useLocalStorage<User[]>('users', []);
     const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
     const [isLoading, setIsLoading] = useState(true);
-    const [currency, setCurrency] = useLocalStorage<Currency>(`currency_${currentUser?.id}`, CURRENCIES[0]);
+    const [currency, setCurrency] = useLocalStorage<Currency>(`currency_${currentUser?.id || 'guest'}`, CURRENCIES[0]);
     
     // Effect to handle initial loading state
     useEffect(() => {
         setIsLoading(false);
     }, []);
-
-    // Effect to update currency storage key when user changes
-    useEffect(() => {
-        if(currentUser) {
-            const userCurrency = window.localStorage.getItem(`currency_${currentUser.id}`);
-            if (userCurrency) {
-                setCurrency(JSON.parse(userCurrency));
-            } else {
-                setCurrency(CURRENCIES[0]);
-            }
-        }
-    }, [currentUser, setCurrency]);
 
     const signup = async (username: string, password?: string): Promise<boolean> => {
         if (users.find(u => u.username === username)) {

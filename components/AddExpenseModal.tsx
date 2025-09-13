@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import type { Expense } from '../types';
 import { Category } from '../types';
 import { CATEGORIES } from '../constants';
 import { AuthContext } from '../contexts/AuthContext';
+import { scanReceipt } from '../services/geminiService';
+import { CameraIcon } from './Icons';
 
 interface AddExpenseModalProps {
     isOpen: boolean;
@@ -18,18 +20,27 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [error, setError] = useState('');
     const { currency } = useContext(AuthContext);
+    const [isScanning, setIsScanning] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const resetForm = () => {
+        setTitle('');
+        setAmount('');
+        setCategory(Category.Food);
+        setDate(new Date().toISOString().split('T')[0]);
+        setError('');
+    };
 
     useEffect(() => {
-        if (expenseToEdit) {
-            setTitle(expenseToEdit.title);
-            setAmount(expenseToEdit.amount.toString());
-            setCategory(expenseToEdit.category);
-            setDate(expenseToEdit.date);
-        } else {
-            setTitle('');
-            setAmount('');
-            setCategory(Category.Food);
-            setDate(new Date().toISOString().split('T')[0]);
+        if (isOpen) {
+            if (expenseToEdit) {
+                setTitle(expenseToEdit.title);
+                setAmount(expenseToEdit.amount.toString());
+                setCategory(expenseToEdit.category);
+                setDate(expenseToEdit.date);
+            } else {
+                resetForm();
+            }
         }
     }, [expenseToEdit, isOpen]);
 
@@ -57,12 +68,82 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
         }
     };
 
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadstart = () => {
+            setIsScanning(true);
+            setError('');
+        };
+        reader.onloadend = async () => {
+            try {
+                const base64String = reader.result as string;
+                const scannedData = await scanReceipt(base64String);
+                setTitle(scannedData.title);
+                setAmount(scannedData.amount.toString());
+                setDate(scannedData.date.split('T')[0]); // Ensure format is YYYY-MM-DD
+                setCategory(scannedData.category);
+            } catch (err: any) {
+                setError(err.message || 'Failed to scan receipt.');
+            } finally {
+                setIsScanning(false);
+                 // Reset file input value to allow re-selection of the same file
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+            }
+        };
+        reader.onerror = () => {
+            setIsScanning(false);
+            setError('Failed to read the file.');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const triggerFileInput = () => {
+        fileInputRef.current?.click();
+    };
+
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 transition-opacity" onClick={onClose} role="dialog" aria-modal="true">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md m-4 transform transition-transform scale-100" onClick={e => e.stopPropagation()}>
+            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md m-4 transform transition-transform scale-100 relative" onClick={e => e.stopPropagation()}>
+                 {isScanning && (
+                    <div className="absolute inset-0 bg-white bg-opacity-80 flex flex-col items-center justify-center z-10 rounded-xl">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                        <p className="mt-4 text-slate-600 font-semibold">Scanning receipt...</p>
+                    </div>
+                )}
                 <h2 className="text-2xl font-bold mb-6 text-slate-800">{expenseToEdit ? 'Edit Expense' : 'Add New Expense'}</h2>
                 {error && <p className="bg-red-100 text-red-700 p-3 rounded-md mb-4">{error}</p>}
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {!expenseToEdit && (
+                        <div>
+                             <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept="image/*"
+                            />
+                            <button
+                                type="button"
+                                onClick={triggerFileInput}
+                                disabled={isScanning}
+                                className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-primary-300 text-primary-600 font-semibold py-3 px-4 rounded-lg hover:bg-primary-50 hover:border-primary-500 transition-all disabled:opacity-50"
+                            >
+                                <CameraIcon className="w-6 h-6" />
+                                Scan Receipt
+                            </button>
+                             <div className="relative flex items-center my-4">
+                                <div className="flex-grow border-t border-slate-300"></div>
+                                <span className="flex-shrink mx-4 text-slate-400 text-sm">Or enter manually</span>
+                                <div className="flex-grow border-t border-slate-300"></div>
+                            </div>
+                        </div>
+                    )}
                     <div>
                         <label htmlFor="title" className="block text-sm font-medium text-slate-600">Title</label>
                         <input type="text" id="title" value={title} onChange={e => setTitle(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500" placeholder="e.g., Coffee" />

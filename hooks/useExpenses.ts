@@ -1,4 +1,4 @@
-import { useState, useCallback, useContext } from 'react';
+import { useState, useCallback, useContext, useMemo } from 'react';
 import { useLocalStorage } from './useLocalStorage';
 // FIX: Imported Category enum to use its values, and specified Expense as a type import.
 import { Category, type Expense } from '../types';
@@ -13,19 +13,23 @@ export const useExpenses = () => {
     const [aiInsight, setAiInsight] = useState<string | null>(null);
     const [isAIInsightLoading, setIsAIInsightLoading] = useState(false);
 
+    const sortedExpenses = useMemo(() => {
+        return [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [expenses]);
+
     const addExpense = (expense: Omit<Expense, 'id'>) => {
         const newExpense: Expense = {
             ...expense,
             id: new Date().getTime().toString(),
         };
-        setExpenses(prevExpenses => [...prevExpenses, newExpense].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        setExpenses(prevExpenses => [...prevExpenses, newExpense]);
     };
 
     const updateExpense = (id: string, updatedExpense: Omit<Expense, 'id'>) => {
         setExpenses(prevExpenses =>
             prevExpenses.map(expense =>
                 expense.id === id ? { ...updatedExpense, id } : expense
-            ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            )
         );
     };
 
@@ -47,5 +51,5 @@ export const useExpenses = () => {
         }
     }, [currency]);
 
-    return { expenses, addExpense, updateExpense, deleteExpense, getAIInsights, aiInsight, isAIInsightLoading };
+    return { expenses: sortedExpenses, addExpense, updateExpense, deleteExpense, getAIInsights, aiInsight, isAIInsightLoading };
 };

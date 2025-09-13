@@ -76,6 +76,9 @@ export const LoginScreen: React.FC = () => {
                             {isLoginView ? 'Sign Up' : 'Login'}
                         </button>
                     </p>
+                    <p className="text-center text-xs text-slate-400 mt-6 px-2">
+                        <span className="font-semibold">Note:</span> Accounts are stored on this device and are not accessible elsewhere.
+                    </p>
                 </div>
                 <footer className="py-4 text-center text-sm text-slate-500 mt-4">
                     Powered by Aqeel Serani Digital Agency

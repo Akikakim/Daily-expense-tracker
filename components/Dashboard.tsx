@@ -1,16 +1,24 @@
 import React, { useState, useMemo, useContext, useRef } from 'react';
-import type { Expense } from '../types';
+import type { Expense, Goal } from '../types';
 import { TimeView, Category } from '../types';
 import { StatCard } from './StatCard';
 import { ExpenseChart } from './ExpenseChart';
 import { ExpenseList } from './ExpenseList';
 import { AIInsights } from './AIInsights';
 import { Budgets } from './Budgets';
-import { isSameDay, isSameWeek, isSameMonth, isSameYear, format, startOfWeek, endOfWeek } from 'date-fns';
+// FIX: Removed 'startOfMonth' which is not an exported member of 'date-fns' in this context and was unused.
+import { isSameDay, isSameWeek, isSameMonth, isSameYear, format, endOfWeek, getDaysInMonth } from 'date-fns';
+import startOfWeek from 'date-fns/startOfWeek';
+import parseISO from 'date-fns/parseISO';
 import { AuthContext } from '../contexts/AuthContext';
 import { CATEGORIES } from '../constants';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useBudgets } from '../hooks/useBudgets';
+import { AIChat } from './AIChat';
+import { FinancialGoals } from './FinancialGoals';
+import { AddGoalModal } from './AddGoalModal';
+import { useGoals } from '../hooks/useGoals';
 
 interface DashboardProps {
     expenses: Expense[];
@@ -24,10 +32,13 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, onDeleteExpense, getAIInsights, aiInsight, isAIInsightLoading }) => {
     const [timeView, setTimeView] = useState<TimeView>(TimeView.Monthly);
     const { currency, currentUser } = useContext(AuthContext);
+    const { budgets } = useBudgets();
+    const { goals, addGoal, deleteGoal } = useGoals();
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All');
-    const reportRef = useRef<HTMLDivElement>(null);
+    const chartContainerRef = useRef<HTMLDivElement>(null);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+    const [isAddGoalModalOpen, setIsAddGoalModalOpen] = useState(false);
 
     const { filteredExpenses, title } = useMemo(() => {
         const now = new Date();
@@ -64,6 +75,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
     }, [expenses, timeView, searchTerm, categoryFilter]);
 
     const totalExpense = useMemo(() => filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0), [filteredExpenses]);
+    
+    const monthlyExpenses = useMemo(() => expenses.filter(e => isSameMonth(parseISO(e.date), new Date())), [expenses]);
+    
+    const { monthlyForecast, monthlySurplus } = useMemo(() => {
+        const now = new Date();
+        const totalSpentThisMonth = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const dayOfMonth = now.getDate();
+        const daysInMonth = getDaysInMonth(now);
+        const avgDailySpend = totalSpentThisMonth / dayOfMonth;
+        const forecast = avgDailySpend * daysInMonth;
+
+        const spendingByCategory = monthlyExpenses.reduce((acc, expense) => {
+            acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
+            return acc;
+        }, {} as Record<Category, number>);
+
+        const surplus = budgets.reduce((total, budget) => {
+            const spent = spendingByCategory[budget.category] || 0;
+            if (spent < budget.amount) {
+                total += (budget.amount - spent);
+            }
+            return total;
+        }, 0);
+
+        return { monthlyForecast: forecast, monthlySurplus: surplus };
+    }, [monthlyExpenses, budgets]);
+
+
     const expensesByCategory = useMemo(() => {
         const categoryMap = new Map<string, number>();
         filteredExpenses.forEach(expense => {
@@ -74,6 +113,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
     }, [filteredExpenses]);
     
     const handleGetAIInsights = () => getAIInsights(filteredExpenses, timeView);
+
+    const handleSaveGoal = (goal: Omit<Goal, 'id'>) => {
+        addGoal(goal);
+        setIsAddGoalModalOpen(false);
+    };
 
     const exportToCSV = () => {
         const headers = "ID,Title,Amount,Category,Date\n";
@@ -91,17 +135,172 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
 
     const downloadReport = async () => {
         setIsGeneratingReport(true);
-        const reportElement = reportRef.current;
-        if (reportElement) {
-            const canvas = await html2canvas(reportElement, { scale: 2 });
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        try {
+            const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 40;
+            let yPos = margin;
+
+            // --- TITLE PAGE ---
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(24);
+            pdf.text('Expense Report', pageWidth / 2, yPos, { align: 'center' });
+            yPos += 30;
+
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(12);
+            pdf.text(`Report for: ${currentUser?.username || 'N/A'}`, margin, yPos);
+            pdf.text(`Period: ${title}`, pageWidth - margin, yPos, { align: 'right' });
+            yPos += 20;
+            pdf.text(`Generated on: ${format(new Date(), 'MMMM d, yyyy')}`, pageWidth - margin, yPos, { align: 'right' });
+
+            yPos += 20;
+            pdf.setLineWidth(0.5);
+            pdf.line(margin, yPos, pageWidth - margin, yPos);
+            yPos += 30;
+
+            const stats = [
+                { title: `Total Spending`, value: new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalExpense) },
+                { title: "Transactions", value: filteredExpenses.length.toLocaleString() },
+                { title: "Avg. Transaction", value: new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(filteredExpenses.length > 0 ? totalExpense / filteredExpenses.length : 0) }
+            ];
+            const cardWidth = (pageWidth - margin * 2 - 20) / 3;
+            stats.forEach((stat, index) => {
+                const x = margin + index * (cardWidth + 10);
+                pdf.setFontSize(10);
+                pdf.setTextColor(100);
+                pdf.text(stat.title, x + 10, yPos + 15);
+                pdf.setFontSize(18);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setTextColor(20);
+                pdf.text(stat.value, x + 10, yPos + 40);
+                pdf.setFont('helvetica', 'normal');
+                pdf.roundedRect(x, yPos, cardWidth, 55, 5, 5, 'S');
+            });
+            yPos += 75;
+
+            const chartElement = chartContainerRef.current;
+            if (chartElement && expensesByCategory.length > 0) {
+                const canvas = await html2canvas(chartElement.querySelector('.recharts-wrapper')!, { scale: 3, backgroundColor: '#ffffff' });
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = 250;
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                const aiInsightsTextWidth = pageWidth - margin * 2 - imgWidth - 20;
+                let insightsHeight = 0;
+
+                 if (aiInsight && !isAIInsightLoading) {
+                    pdf.setFontSize(10);
+                    const lines = pdf.splitTextToSize(aiInsight.replace(/### |## |\* /g, ''), aiInsightsTextWidth);
+                    insightsHeight = lines.length * 12 + 40; // Approximate height
+                }
+                
+                if (yPos + Math.max(imgHeight, insightsHeight) > pageHeight - margin) {
+                    pdf.addPage();
+                    yPos = margin;
+                }
+
+                pdf.setFontSize(16);
+                pdf.setFont('helvetica', 'bold');
+                pdf.setTextColor(20);
+                pdf.text('Spending by Category', margin, yPos);
+                pdf.addImage(imgData, 'PNG', margin, yPos + 15, imgWidth, imgHeight);
+
+                if (aiInsight && !isAIInsightLoading) {
+                     pdf.text('AI Financial Assistant', margin + imgWidth + 20, yPos);
+                     pdf.setFontSize(10);
+                     pdf.setFont('helvetica', 'normal');
+                     pdf.setTextColor(50);
+                     const lines = aiInsight.split('\n').filter(line => line.trim() !== '');
+                     let insightY = yPos + 30;
+                     lines.forEach(line => {
+                         if (line.startsWith('### ') || line.startsWith('## ')) {
+                             pdf.setFont('helvetica', 'bold');
+                             pdf.text(line.replace(/### |## /g, ''), margin + imgWidth + 20, insightY, { maxWidth: aiInsightsTextWidth });
+                             pdf.setFont('helvetica', 'normal');
+                             insightY += 15;
+                         } else if (line.startsWith('* ')) {
+                              pdf.text(`• ${line.substring(2)}`, margin + imgWidth + 20 + 10, insightY, { maxWidth: aiInsightsTextWidth - 10 });
+                               insightY += 15;
+                         } else {
+                             const splitLines = pdf.splitTextToSize(line, aiInsightsTextWidth);
+                             pdf.text(splitLines, margin + imgWidth + 20, insightY);
+                             insightY += splitLines.length * 12;
+                         }
+                     });
+                }
+                 yPos += Math.max(imgHeight, insightsHeight) + 30;
+            }
+
+            if (filteredExpenses.length > 0) {
+                pdf.addPage();
+                yPos = margin;
+
+                const drawPageHeader = () => {
+                    pdf.setFontSize(18);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.text('Detailed Transactions', margin, yPos);
+                    yPos += 30;
+                };
+
+                const drawTableHeader = () => {
+                    pdf.setFontSize(10);
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFillColor(240, 240, 240);
+                    pdf.rect(margin, yPos, pageWidth - margin * 2, 20, 'F');
+                    pdf.text('Date', margin + 5, yPos + 14);
+                    pdf.text('Title', margin + 100, yPos + 14);
+                    pdf.text('Category', margin + 300, yPos + 14);
+                    pdf.text('Amount', pageWidth - margin - 5, yPos + 14, { align: 'right' });
+                    yPos += 25;
+                };
+
+                drawPageHeader();
+                drawTableHeader();
+
+                pdf.setFont('helvetica', 'normal');
+                pdf.setFontSize(10);
+                filteredExpenses.forEach(expense => {
+                    if (yPos > pageHeight - margin - 20) {
+                        pdf.addPage();
+                        yPos = margin;
+                        drawPageHeader();
+                        drawTableHeader();
+                        pdf.setFont('helvetica', 'normal');
+                        pdf.setFontSize(10);
+                    }
+                    const dateStr = format(parseISO(expense.date), 'MMM d, yyyy');
+                    const amountStr = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(expense.amount);
+
+                    pdf.text(dateStr, margin + 5, yPos + 14);
+                    pdf.text(expense.title, margin + 100, yPos + 14, { maxWidth: 190 });
+                    pdf.text(expense.category, margin + 300, yPos + 14);
+                    pdf.text(amountStr, pageWidth - margin - 5, yPos + 14, { align: 'right' });
+                    
+                    yPos += 20;
+                    pdf.setLineWidth(0.2);
+                    pdf.line(margin, yPos, pageWidth - margin, yPos);
+                    yPos += 5;
+                });
+            }
+
+            const pageCount = pdf.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(8);
+                pdf.setTextColor(150);
+                pdf.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
+                pdf.text('Powered by Aqeel Serani Digital Agency', margin, pageHeight - 15);
+            }
+
             pdf.save(`report-${timeView}-${new Date().toISOString().split('T')[0]}.pdf`);
+        } catch (error) {
+            console.error("Failed to generate PDF report:", error);
+            // You could show an error to the user here
+        } finally {
+            setIsGeneratingReport(false);
         }
-        setIsGeneratingReport(false);
     };
 
     return (
@@ -113,14 +312,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                     </button>
                 ))}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title={`Total ${timeView} Spending`} value={totalExpense} currency={currency} />
+                <StatCard title="This Month's Savings" value={monthlySurplus} currency={currency} tooltip="Amount you are under budget so far this month." />
+                <StatCard title="Monthly Forecast" value={monthlyForecast} currency={currency} tooltip="Projected spending for this month based on your current rate." />
                 <StatCard title="Transactions" value={filteredExpenses.length} isCurrency={false} currency={currency} />
-                <StatCard title="Avg. Transaction" value={filteredExpenses.length > 0 ? totalExpense / filteredExpenses.length : 0} currency={currency} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-                <div className="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg">
+                <div ref={chartContainerRef} className="lg:col-span-3 bg-white p-6 rounded-xl shadow-lg">
                     <h2 className="text-xl font-bold mb-4">Spending by Category</h2>
                     <ExpenseChart data={expensesByCategory} currency={currency} />
                 </div>
@@ -128,9 +328,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                     <AIInsights onGenerate={handleGetAIInsights} insight={aiInsight} isLoading={isAIInsightLoading} />
                 </div>
             </div>
+            
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                <FinancialGoals goals={goals} onDeleteGoal={deleteGoal} onAddGoal={() => setIsAddGoalModalOpen(true)} currency={currency} />
+            </div>
 
             <div className="bg-white p-6 rounded-xl shadow-lg">
-                 <Budgets expenses={filteredExpenses.filter(e => isSameMonth(new Date(e.date), new Date()))} />
+                <AIChat expenses={filteredExpenses} budgets={budgets} currency={currency} />
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                 <Budgets expenses={monthlyExpenses} />
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-lg">
@@ -152,34 +360,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                 </div>
                 <ExpenseList expenses={filteredExpenses} onEdit={onEditExpense} onDelete={onDeleteExpense} currency={currency} />
             </div>
-
-            {/* Hidden report for PDF generation */}
-            <div className="absolute -left-[9999px] top-0">
-                <div ref={reportRef} className="p-10 bg-white" style={{width: '210mm'}}>
-                    <h1 className="text-3xl font-bold text-primary-700 mb-2">Expense Report</h1>
-                    <p className="text-slate-600">Generated for: {currentUser?.username}</p>
-                    <p className="text-slate-600">Period: {title}</p>
-                    <p className="text-slate-500 mb-8">Powered by Aqeel Serani Digital Agency</p>
-                    <div className="grid grid-cols-3 gap-6 mb-8">
-                        <StatCard title={`Total Spending`} value={totalExpense} currency={currency} />
-                        <StatCard title="Transactions" value={filteredExpenses.length} isCurrency={false} currency={currency} />
-                        <StatCard title="Avg. Transaction" value={filteredExpenses.length > 0 ? totalExpense / filteredExpenses.length : 0} currency={currency} />
-                    </div>
-                    <div className="mb-8">
-                         <h2 className="text-xl font-bold mb-4">Spending by Category</h2>
-                         <ExpenseChart data={expensesByCategory} currency={currency} />
-                    </div>
-                    {aiInsight && !isAIInsightLoading && (
-                        <div className="mb-8 p-6 bg-slate-50 rounded-lg">
-                           <AIInsights onGenerate={()=>{}} insight={aiInsight} isLoading={false} />
-                        </div>
-                    )}
-                    <div>
-                        <h2 className="text-xl font-bold mb-4">All Transactions</h2>
-                        <ExpenseList expenses={filteredExpenses} onEdit={()=>{}} onDelete={()=>{}} currency={currency} />
-                    </div>
-                </div>
-            </div>
+            {isAddGoalModalOpen && (
+                <AddGoalModal 
+                    isOpen={isAddGoalModalOpen}
+                    onClose={() => setIsAddGoalModalOpen(false)}
+                    onSave={handleSaveGoal}
+                    expenses={monthlyExpenses}
+                />
+            )}
         </div>
     );
 };
