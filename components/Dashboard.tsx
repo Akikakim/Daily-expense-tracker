@@ -19,6 +19,7 @@ import { AIChat } from './AIChat';
 import { FinancialGoals } from './FinancialGoals';
 import { AddGoalModal } from './AddGoalModal';
 import { useGoals } from '../hooks/useGoals';
+import { SpendingTrendsChart } from './SpendingTrendsChart';
 
 interface DashboardProps {
     expenses: Expense[];
@@ -329,6 +330,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                 </div>
             </div>
             
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                <SpendingTrendsChart allExpenses={expenses} currency={currency} />
+            </div>
+
             <div className="bg-white p-6 rounded-xl shadow-lg">
                 <FinancialGoals goals={goals} onDeleteGoal={deleteGoal} onAddGoal={() => setIsAddGoalModalOpen(true)} currency={currency} />
             </div>

@@ -2,6 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import type { User, Currency } from '../types';
 import { CURRENCIES } from '../constants';
+import { VALID_LICENSE_KEYS } from '../licenseKeys';
 
 interface AuthContextType {
     currentUser: User | null;
@@ -11,22 +12,39 @@ interface AuthContextType {
     isLoading: boolean;
     currency: Currency;
     setCurrency: React.Dispatch<React.SetStateAction<Currency>>;
+    isLicensed: boolean;
+    activateLicense: (key: string) => Promise<boolean>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+    const [activatedKey, setActivatedKey] = useLocalStorage<string | null>('activated_license_key', null);
+    const [isLicensed, setIsLicensed] = useState(false);
+
     const [users, setUsers] = useLocalStorage<User[]>('users', []);
     const [currentUser, setCurrentUser] = useLocalStorage<User | null>('currentUser', null);
     const [isLoading, setIsLoading] = useState(true);
     const [currency, setCurrency] = useLocalStorage<Currency>(`currency_${currentUser?.id || 'guest'}`, CURRENCIES[0]);
     
-    // Effect to handle initial loading state
     useEffect(() => {
+        if (activatedKey && VALID_LICENSE_KEYS.has(activatedKey)) {
+            setIsLicensed(true);
+        }
         setIsLoading(false);
-    }, []);
+    }, [activatedKey]);
+
+    const activateLicense = async (key: string): Promise<boolean> => {
+        if (VALID_LICENSE_KEYS.has(key)) {
+            setActivatedKey(key);
+            setIsLicensed(true);
+            return true;
+        }
+        return false;
+    };
 
     const signup = async (username: string, password?: string): Promise<boolean> => {
+        if (!isLicensed) return false;
         if (users.find(u => u.username === username)) {
             return false; // User already exists
         }
@@ -37,6 +55,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     const login = async (username: string, password?: string): Promise<boolean> => {
+        if (!isLicensed) return false;
         const user = users.find(u => u.username === username && u.password === password);
         if (user) {
             setCurrentUser(user);
@@ -64,6 +83,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isLoading,
         currency,
         setCurrency,
+        isLicensed,
+        activateLicense,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

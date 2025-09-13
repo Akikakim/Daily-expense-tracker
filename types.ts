@@ -47,3 +47,9 @@ export interface Goal {
     targetAmount: number;
     aiPlan?: string;
 }
+
+export interface BackupData {
+    expenses: Expense[];
+    budgets: Budget[];
+    goals: Goal[];
+}
