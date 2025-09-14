@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useContext, useRef } from 'react';
+import React, { useState, useMemo, useContext, useRef, useEffect } from 'react';
 import type { Expense, Goal, Budget, Currency } from '../types';
 import { Category } from '../types';
 import { StatCard } from './StatCard';
@@ -15,6 +15,11 @@ import {
     addMonths,
     subMonths,
     parseISO,
+    startOfYear,
+    endOfYear,
+    startOfMonth as dfnsStartOfMonth,
+    endOfMonth as dfnsEndOfMonth,
+    isValid,
 } from 'date-fns';
 import { AuthContext } from '../contexts/AuthContext';
 import { CATEGORIES, CATEGORY_DETAILS } from '../constants';
@@ -26,7 +31,7 @@ import { FinancialGoals } from './FinancialGoals';
 import { AddGoalModal } from './AddGoalModal';
 import { useGoals } from '../hooks/useGoals';
 import { SpendingTrendsChart } from './SpendingTrendsChart';
-import { TargetIcon } from './Icons';
+import { TargetIcon, CalendarIcon } from './Icons';
 
 interface ReportTemplateProps {
     expenses: Expense[];
@@ -80,7 +85,7 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((pr
                      <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Total Spending</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.totalExpense)}</p></div>
                      <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Transactions</h3><p className="text-2xl font-bold text-slate-800 mt-1">{stats.transactions}</p></div>
                      <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Avg. Transaction</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.transactions > 0 ? stats.totalExpense / stats.transactions : 0)}</p></div>
-                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">This Month's Savings</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.monthlySurplus)}</p></div>
+                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Period Savings</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.monthlySurplus)}</p></div>
                 </section>
                 <section className="grid grid-cols-2 gap-8 flex-grow">
                     <div className="bg-white p-4 rounded-lg shadow-md border flex flex-col">
@@ -113,7 +118,7 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((pr
                  <header className="pb-4 border-b">
                     <h1 className="text-3xl font-bold text-slate-800">Monthly Budget Progress</h1>
                 </header>
-                <section className="my-8 space-y-5">
+                <section className="my-6 space-y-3">
                      {activeBudgets.length > 0 ? activeBudgets.map(budget => {
                          const spent = spendingForReportPeriod[budget.category] || 0;
                          const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
@@ -127,22 +132,26 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((pr
                          );
                      }) : <p className="text-center text-slate-500 py-8">No budgets have been set for this period.</p>}
                 </section>
-                <header className="pb-4 border-b mt-8">
+                <header className="pb-4 border-b mt-6">
                     <h1 className="text-3xl font-bold text-slate-800">Financial Goals</h1>
                 </header>
-                <section className="my-8 space-y-6">
-                    {goals.length > 0 ? goals.map(goal => (
-                        <div key={goal.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <p className="font-bold text-slate-800 text-lg">{goal.title}</p>
-                                    <p className="font-semibold text-primary-600 text-xl">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(goal.targetAmount)}</p>
+                <section className="my-6">
+                    {goals.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+                            {goals.map(goal => (
+                                <div key={goal.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 break-inside-avoid">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <p className="font-bold text-slate-800 text-lg">{goal.title}</p>
+                                            <p className="font-semibold text-primary-600 text-xl">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(goal.targetAmount)}</p>
+                                        </div>
+                                        <TargetIcon className="w-8 h-8 text-primary-400"/>
+                                    </div>
+                                    {goal.aiPlan && <div className="mt-3 text-sm text-slate-600 bg-primary-50 p-3 rounded-md border border-primary-200"><p className="font-semibold mb-1 text-primary-700">AI Savings Plan:</p><p>{goal.aiPlan}</p></div>}
                                 </div>
-                                <TargetIcon className="w-8 h-8 text-primary-400"/>
-                            </div>
-                            {goal.aiPlan && <div className="mt-3 text-sm text-slate-600 bg-primary-50 p-3 rounded-md border border-primary-200"><p className="font-semibold mb-1 text-primary-700">AI Savings Plan:</p><p>{goal.aiPlan}</p></div>}
+                            ))}
                         </div>
-                    )) : <p className="text-center text-slate-500 py-8">No financial goals have been set.</p>}
+                    ) : <p className="text-center text-slate-500 py-8">No financial goals have been set.</p>}
                 </section>
                 <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
             </div>
@@ -189,6 +198,70 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((pr
     );
 });
 
+type ReportType = 'current_month' | 'current_year' | 'custom_range';
+
+interface ReportModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onGenerate: (config: { type: ReportType; startDate?: string; endDate?: string }) => void;
+    currentDate: Date;
+}
+
+const ReportModal: React.FC<ReportModalProps> = ({ isOpen, onClose, onGenerate, currentDate }) => {
+    const [reportType, setReportType] = useState<ReportType>('current_month');
+    const [startDate, setStartDate] = useState(format(subMonths(new Date(), 1), 'yyyy-MM'));
+    const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM'));
+
+    if (!isOpen) return null;
+
+    const handleGenerateClick = () => {
+        onGenerate({ type: reportType, startDate, endDate });
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md m-4" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold mb-6 text-slate-800">Generate Report</h2>
+                <div className="space-y-4">
+                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                        <input type="radio" name="reportType" value="current_month" checked={reportType === 'current_month'} onChange={() => setReportType('current_month')} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
+                        <span className="ml-3 text-slate-700">Report for <span className="font-semibold">{format(currentDate, 'MMMM yyyy')}</span></span>
+                    </label>
+                    <label className="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-slate-50">
+                        <input type="radio" name="reportType" value="current_year" checked={reportType === 'current_year'} onChange={() => setReportType('current_year')} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
+                        <span className="ml-3 text-slate-700">Report for Year <span className="font-semibold">{format(new Date(), 'yyyy')}</span></span>
+                    </label>
+                    <label className="p-3 border rounded-lg hover:bg-slate-50 block">
+                        <div className="flex items-center">
+                            <input type="radio" name="reportType" value="custom_range" checked={reportType === 'custom_range'} onChange={() => setReportType('custom_range')} className="h-4 w-4 text-primary-600 focus:ring-primary-500" />
+                            <span className="ml-3 text-slate-700">Custom Date Range</span>
+                        </div>
+                        {reportType === 'custom_range' && (
+                            <div className="mt-4 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label htmlFor="startDate" className="block text-sm font-medium text-slate-600">Start Month</label>
+                                    <input type="month" id="startDate" value={startDate} onChange={e => setStartDate(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                </div>
+                                <div>
+                                    <label htmlFor="endDate" className="block text-sm font-medium text-slate-600">End Month</label>
+                                    <input type="month" id="endDate" value={endDate} onChange={e => setEndDate(e.target.value)} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500" />
+                                </div>
+                            </div>
+                        )}
+                    </label>
+                </div>
+                <div className="flex justify-end gap-4 pt-6">
+                    <button type="button" onClick={onClose} className="py-2 px-4 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300">Cancel</button>
+                    <button type="button" onClick={handleGenerateClick} className="py-2 px-4 bg-primary-600 text-white font-semibold rounded-lg shadow-md hover:bg-primary-700 flex items-center gap-2">
+                        <CalendarIcon className="w-5 h-5" /> Generate PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+};
+
+
 interface DashboardProps {
     expenses: Expense[];
     onEditExpense: (expense: Expense) => void;
@@ -199,6 +272,14 @@ interface DashboardProps {
     currentDate: Date;
     setCurrentDate: React.Dispatch<React.SetStateAction<Date>>;
 }
+
+interface ReportData {
+    expenses: Expense[];
+    period: string;
+    stats: ReportTemplateProps['stats'];
+    expensesByCategory: ReportTemplateProps['expensesByCategory'];
+}
+
 
 const TabButton: React.FC<{ active: boolean; onClick: () => void; children: React.ReactNode }> = ({ active, onClick, children }) => (
     <button
@@ -222,9 +303,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
     const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All');
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [isAddGoalModalOpen, setIsAddGoalModalOpen] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [reportData, setReportData] = useState<ReportData | null>(null);
     const [activeTab, setActiveTab] = useState('category');
     const reportRef = useRef<HTMLDivElement>(null);
-
 
     const { filteredExpenses, title } = useMemo(() => {
         const periodExpenses = expenses.filter(e => isSameMonth(new Date(e.date), currentDate) && isSameYear(new Date(e.date), currentDate));
@@ -241,23 +323,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
 
     const totalExpense = useMemo(() => filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0), [filteredExpenses]);
     
-    // Use the filtered expenses for the current month for these calculations
-    const monthlyExpenses = useMemo(() => expenses.filter(e => isSameMonth(parseISO(e.date), new Date())), [expenses]);
+    const expensesForSelectedMonth = useMemo(() => {
+        return expenses.filter(e => isSameMonth(parseISO(e.date), currentDate));
+    }, [expenses, currentDate]);
     
-    const { monthlyForecast, monthlySurplus } = useMemo(() => {
+    const { forecast, surplus, forecastTitle } = useMemo(() => {
         const now = new Date();
-        const totalSpentThisMonth = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-        const dayOfMonth = now.getDate();
-        const daysInMonth = getDaysInMonth(now);
-        const avgDailySpend = dayOfMonth > 0 ? totalSpentThisMonth / dayOfMonth : 0;
-        const forecast = avgDailySpend * daysInMonth;
+        const totalSpent = expensesForSelectedMonth.reduce((sum, exp) => sum + exp.amount, 0);
+        
+        let calculatedForecast = 0;
+        let title = "Spending Forecast";
 
-        const spendingByCategory = monthlyExpenses.reduce((acc, expense) => {
+        if (isSameMonth(currentDate, now)) {
+            const dayOfMonth = now.getDate();
+            const daysInMonth = getDaysInMonth(now);
+            const avgDailySpend = dayOfMonth > 0 ? totalSpent / dayOfMonth : 0;
+            calculatedForecast = avgDailySpend * daysInMonth;
+        } else if (currentDate < now) {
+            calculatedForecast = totalSpent;
+            title = "Total Spent";
+        } // For future months, forecast remains 0
+
+        const spendingByCategory = expensesForSelectedMonth.reduce((acc, expense) => {
             acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
             return acc;
         }, {} as Record<Category, number>);
 
-        const surplus = budgets.reduce((total, budget) => {
+        const calculatedSurplus = budgets.reduce((total, budget) => {
             const spent = spendingByCategory[budget.category] || 0;
             if (spent < budget.amount) {
                 total += (budget.amount - spent);
@@ -265,8 +357,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
             return total;
         }, 0);
 
-        return { monthlyForecast: forecast, monthlySurplus: surplus };
-    }, [monthlyExpenses, budgets]);
+        return { forecast: calculatedForecast, surplus: calculatedSurplus, forecastTitle: title };
+    }, [expensesForSelectedMonth, budgets, currentDate]);
 
 
     const expensesByCategory = useMemo(() => {
@@ -299,14 +391,83 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
         document.body.removeChild(link);
     };
 
-    const downloadReport = async () => {
+    const handleGenerateReport = (config: { type: ReportType; startDate?: string; endDate?: string }) => {
+        setIsReportModalOpen(false);
+
+        let expensesToReport: Expense[] = [];
+        let period = '';
+        const now = new Date();
+
+        switch (config.type) {
+            case 'current_month':
+                expensesToReport = filteredExpenses;
+                period = format(currentDate, 'MMMM yyyy');
+                break;
+            case 'current_year': {
+                const yearStart = startOfYear(now);
+                const yearEnd = endOfYear(now);
+                expensesToReport = expenses.filter(e => {
+                    const d = parseISO(e.date);
+                    return d >= yearStart && d <= yearEnd;
+                });
+                period = format(now, 'yyyy');
+                break;
+            }
+            case 'custom_range': {
+                if (!config.startDate || !config.endDate) {
+                    alert("Please select a start and end date.");
+                    return;
+                }
+                const start = dfnsStartOfMonth(parseISO(config.startDate));
+                const end = dfnsEndOfMonth(parseISO(config.endDate));
+
+                if (isValid(start) && isValid(end) && start <= end) {
+                    expensesToReport = expenses.filter(e => {
+                        const d = parseISO(e.date);
+                        return d >= start && d <= end;
+                    });
+                    period = `${format(start, 'MMM yyyy')} to ${format(end, 'MMM yyyy')}`;
+                } else {
+                    alert("Invalid date range selected.");
+                    return;
+                }
+                break;
+            }
+        }
+        
+        const reportTotalExpense = expensesToReport.reduce((sum, e) => sum + e.amount, 0);
+        const reportTransactions = expensesToReport.length;
+        
+        const reportExpensesByCategory = Array.from(expensesToReport.reduce((map, e) => {
+             map.set(e.category, (map.get(e.category) || 0) + e.amount);
+             return map;
+        }, new Map<string, number>()).entries()).map(([name, value]) => ({ name, value }));
+
+        const dataForReport: ReportData = {
+            expenses: expensesToReport,
+            period,
+            stats: {
+                totalExpense: reportTotalExpense,
+                transactions: reportTransactions,
+                monthlySurplus: config.type === 'current_month' ? surplus : 0,
+                monthlyForecast: config.type === 'current_month' ? forecast : 0,
+            },
+            expensesByCategory: reportExpensesByCategory,
+        };
+        
+        setReportData(dataForReport);
         setIsGeneratingReport(true);
-        // Delay to allow the hidden report component to render with the latest data
-        setTimeout(async () => {
+    };
+
+    useEffect(() => {
+        if (!isGeneratingReport || !reportData) return;
+
+        const download = async () => {
             const reportElement = reportRef.current;
             if (!reportElement) {
                 console.error("Report template element not found.");
                 setIsGeneratingReport(false);
+                setReportData(null);
                 alert("Could not generate report. Please try again.");
                 return;
             }
@@ -320,12 +481,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
 
                 for (let i = 0; i < totalPages; i++) {
                     const pageElement = pageElements[i];
-                    const canvas = await html2canvas(pageElement, {
-                        scale: 2,
-                        useCORS: true,
-                        logging: false,
-                        backgroundColor: '#ffffff'
-                    });
+                    const canvas = await html2canvas(pageElement, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
                     
                     if (i > 0) pdf.addPage();
                     const imgData = canvas.toDataURL('image/png');
@@ -337,15 +493,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                     pdf.text(`Page ${i + 1} of ${totalPages}`, pdfWidth - 40, pdfHeight - 20, { align: 'right' });
                 }
 
-                pdf.save(`Expense-Report-${format(currentDate, 'yyyy-MM')}.pdf`);
+                pdf.save(`Expense-Report-${reportData.period.replace(/ /g, '-')}.pdf`);
             } catch (error) {
                 console.error("Error generating PDF:", error);
                 alert("Sorry, there was an error generating the PDF report.");
             } finally {
                 setIsGeneratingReport(false);
+                setReportData(null);
             }
-        }, 500);
-    };
+        };
+
+        // Delay to allow the hidden report component to render with the latest data
+        const timer = setTimeout(download, 500);
+        return () => clearTimeout(timer);
+
+    }, [isGeneratingReport, reportData]);
+
 
     return (
         <div className="space-y-8">
@@ -361,8 +524,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Spending" value={totalExpense} currency={currency} />
-                <StatCard title="This Month's Savings" value={monthlySurplus} currency={currency} tooltip="Amount you are under budget so far this month." />
-                <StatCard title="Monthly Forecast" value={monthlyForecast} currency={currency} tooltip="Projected spending for this month based on your current rate." />
+                <StatCard title="Savings This Month" value={surplus} currency={currency} tooltip="Amount you are under budget for the selected month." />
+                <StatCard title={forecastTitle} value={forecast} currency={currency} tooltip="Projected spending for this month based on your current rate." />
                 <StatCard title="Transactions" value={filteredExpenses.length} isCurrency={false} currency={currency} />
             </div>
             
@@ -376,7 +539,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                          <button onClick={exportToCSV} className="py-2 px-4 bg-emerald-600 text-white font-semibold rounded-lg shadow-md hover:bg-emerald-700 transition-colors text-sm">Export CSV</button>
-                       <button onClick={downloadReport} disabled={isGeneratingReport} className="py-2 px-4 bg-rose-600 text-white font-semibold rounded-lg shadow-md hover:bg-rose-700 transition-colors text-sm disabled:bg-rose-300">
+                       <button onClick={() => setIsReportModalOpen(true)} disabled={isGeneratingReport} className="py-2 px-4 bg-rose-600 text-white font-semibold rounded-lg shadow-md hover:bg-rose-700 transition-colors text-sm disabled:bg-rose-300">
                            {isGeneratingReport ? 'Generating...' : 'Download Report'}
                        </button>
                     </div>
@@ -422,7 +585,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
             </div>
 
             <div className="bg-white p-6 rounded-xl shadow-lg">
-                 <Budgets expenses={monthlyExpenses} />
+                 <Budgets expenses={expensesForSelectedMonth} />
             </div>
 
             {isAddGoalModalOpen && (
@@ -430,25 +593,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                     isOpen={isAddGoalModalOpen}
                     onClose={() => setIsAddGoalModalOpen(false)}
                     onSave={handleSaveGoal}
-                    expenses={monthlyExpenses}
+                    expenses={expensesForSelectedMonth}
                 />
             )}
+
+            <ReportModal
+                isOpen={isReportModalOpen}
+                onClose={() => setIsReportModalOpen(false)}
+                onGenerate={handleGenerateReport}
+                currentDate={currentDate}
+            />
             
-            {/* Hidden container for PDF generation */}
-             {isGeneratingReport && (
+            {isGeneratingReport && reportData && (
                 <div className="absolute -left-[9999px] top-auto">
                     <ReportTemplate
                         ref={reportRef}
-                        expenses={filteredExpenses}
+                        expenses={reportData.expenses}
                         allExpenses={expenses}
                         budgets={budgets}
                         goals={goals}
                         aiInsight={aiInsight}
                         currency={currency}
                         user={{ username: currentUser?.username || 'User' }}
-                        period={format(currentDate, 'MMMM yyyy')}
-                        stats={{ totalExpense, monthlySurplus, monthlyForecast, transactions: filteredExpenses.length }}
-                        expensesByCategory={expensesByCategory}
+                        period={reportData.period}
+                        stats={reportData.stats}
+                        expensesByCategory={reportData.expensesByCategory}
                     />
                 </div>
             )}
