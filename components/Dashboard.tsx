@@ -115,44 +115,50 @@ const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((pr
             
             {/* Page 3: Budgets & Goals */}
             <div className="report-page w-[794px] h-[1123px] p-10 flex flex-col bg-white">
-                 <header className="pb-4 border-b">
-                    <h1 className="text-3xl font-bold text-slate-800">Monthly Budget Progress</h1>
-                </header>
-                <section className="my-6 space-y-3">
-                     {activeBudgets.length > 0 ? activeBudgets.map(budget => {
-                         const spent = spendingForReportPeriod[budget.category] || 0;
-                         const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
-                         const isOverBudget = percentage > 100;
-                         const barColor = isOverBudget ? 'bg-red-500' : CATEGORY_DETAILS[budget.category].color;
-                         return (
-                            <div key={budget.category}>
-                                <div className="flex justify-between items-center mb-1 text-sm"><span className="font-semibold text-slate-700">{budget.category}</span><span className={`font-medium ${isOverBudget ? 'text-red-600' : 'text-slate-500'}`}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(spent)} / {new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(budget.amount)}</span></div>
-                                <div className="w-full bg-slate-200 rounded-full h-2.5"><div className={`${barColor} h-2.5 rounded-full`} style={{ width: `${Math.min(percentage, 100)}%` }}></div></div>
-                            </div>
-                         );
-                     }) : <p className="text-center text-slate-500 py-8">No budgets have been set for this period.</p>}
-                </section>
-                <header className="pb-4 border-b mt-6">
-                    <h1 className="text-3xl font-bold text-slate-800">Financial Goals</h1>
-                </header>
-                <section className="my-6">
-                    {goals.length > 0 ? (
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-                            {goals.map(goal => (
-                                <div key={goal.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 break-inside-avoid">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <p className="font-bold text-slate-800 text-lg">{goal.title}</p>
-                                            <p className="font-semibold text-primary-600 text-xl">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(goal.targetAmount)}</p>
-                                        </div>
-                                        <TargetIcon className="w-8 h-8 text-primary-400"/>
+                <div className="grid grid-cols-2 gap-x-8 flex-grow">
+                    {/* Column 1: Budgets */}
+                    <div>
+                        <header className="pb-2 border-b mb-4">
+                            <h2 className="text-xl font-bold text-slate-800">Monthly Budget Progress</h2>
+                        </header>
+                        <section className="space-y-3">
+                             {activeBudgets.length > 0 ? activeBudgets.map(budget => {
+                                 const spent = spendingForReportPeriod[budget.category] || 0;
+                                 const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+                                 const isOverBudget = percentage > 100;
+                                 const barColor = isOverBudget ? 'bg-red-500' : CATEGORY_DETAILS[budget.category].color;
+                                 return (
+                                    <div key={budget.category}>
+                                        <div className="flex justify-between items-center mb-1 text-[11px]"><span className="font-semibold text-slate-700">{budget.category}</span><span className={`font-medium ${isOverBudget ? 'text-red-600' : 'text-slate-500'}`}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(spent)} / {new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(budget.amount)}</span></div>
+                                        <div className="w-full bg-slate-200 rounded-full h-1.5"><div className={`${barColor} h-1.5 rounded-full`} style={{ width: `${Math.min(percentage, 100)}%` }}></div></div>
                                     </div>
-                                    {goal.aiPlan && <div className="mt-3 text-sm text-slate-600 bg-primary-50 p-3 rounded-md border border-primary-200"><p className="font-semibold mb-1 text-primary-700">AI Savings Plan:</p><p>{goal.aiPlan}</p></div>}
-                                </div>
-                            ))}
-                        </div>
-                    ) : <p className="text-center text-slate-500 py-8">No financial goals have been set.</p>}
-                </section>
+                                 );
+                             }) : <p className="text-center text-slate-500 py-8 text-sm">No budgets have been set for this period.</p>}
+                        </section>
+                    </div>
+                    {/* Column 2: Goals */}
+                    <div>
+                        <header className="pb-2 border-b mb-4">
+                            <h2 className="text-xl font-bold text-slate-800">Financial Goals</h2>
+                        </header>
+                        <section className="space-y-2">
+                            {goals.length > 0 ? (
+                                goals.map(goal => (
+                                    <div key={goal.id} className="bg-slate-50 border border-slate-200 rounded-lg p-2 break-inside-avoid">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <p className="font-bold text-slate-800 text-sm">{goal.title}</p>
+                                                <p className="font-semibold text-primary-600 text-base">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(goal.targetAmount)}</p>
+                                            </div>
+                                            <TargetIcon className="w-5 h-5 text-primary-400"/>
+                                        </div>
+                                        {goal.aiPlan && <div className="mt-2 text-xs text-slate-600 bg-primary-50 p-2 rounded-md border border-primary-200"><p className="font-semibold mb-1 text-primary-700">AI Savings Plan:</p><p>{goal.aiPlan}</p></div>}
+                                    </div>
+                                ))
+                            ) : <p className="text-center text-slate-500 py-8 text-sm">No financial goals have been set.</p>}
+                        </section>
+                    </div>
+                </div>
                 <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
             </div>
             
@@ -309,7 +315,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
     const reportRef = useRef<HTMLDivElement>(null);
 
     const { filteredExpenses, title } = useMemo(() => {
-        const periodExpenses = expenses.filter(e => isSameMonth(new Date(e.date), currentDate) && isSameYear(new Date(e.date), currentDate));
+        const periodExpenses = expenses.filter(e => isSameMonth(parseISO(e.date), currentDate) && isSameYear(parseISO(e.date), currentDate));
         const periodTitle = `Expenses for ${format(currentDate, 'MMMM yyyy')}`;
 
         const searchedAndFilteredExpenses = periodExpenses.filter(expense => {
@@ -327,10 +333,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
         return expenses.filter(e => isSameMonth(parseISO(e.date), currentDate));
     }, [expenses, currentDate]);
     
-    const { forecast, surplus, forecastTitle } = useMemo(() => {
+    const totalBudgeted = useMemo(() => budgets.reduce((total, budget) => total + budget.amount, 0), [budgets]);
+    const totalSpentThisMonth = useMemo(() => expensesForSelectedMonth.reduce((sum, exp) => sum + exp.amount, 0), [expensesForSelectedMonth]);
+    const surplus = useMemo(() => totalBudgeted - totalSpentThisMonth, [totalBudgeted, totalSpentThisMonth]);
+
+    const { forecast, forecastTitle } = useMemo(() => {
         const now = new Date();
-        const totalSpent = expensesForSelectedMonth.reduce((sum, exp) => sum + exp.amount, 0);
-        
+        const totalSpent = totalSpentThisMonth;
+
         let calculatedForecast = 0;
         let title = "Spending Forecast";
 
@@ -343,22 +353,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
             calculatedForecast = totalSpent;
             title = "Total Spent";
         } // For future months, forecast remains 0
-
-        const spendingByCategory = expensesForSelectedMonth.reduce((acc, expense) => {
-            acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-            return acc;
-        }, {} as Record<Category, number>);
-
-        const calculatedSurplus = budgets.reduce((total, budget) => {
-            const spent = spendingByCategory[budget.category] || 0;
-            if (spent < budget.amount) {
-                total += (budget.amount - spent);
-            }
-            return total;
-        }, 0);
-
-        return { forecast: calculatedForecast, surplus: calculatedSurplus, forecastTitle: title };
-    }, [expensesForSelectedMonth, budgets, currentDate]);
+        
+        return { forecast: calculatedForecast, forecastTitle: title };
+    }, [currentDate, totalSpentThisMonth]);
 
 
     const expensesByCategory = useMemo(() => {
@@ -524,7 +521,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard title="Total Spending" value={totalExpense} currency={currency} />
-                <StatCard title="Savings This Month" value={surplus} currency={currency} tooltip="Amount you are under budget for the selected month." />
+                <StatCard title="This Month's Savings" value={surplus} currency={currency} tooltip="Total budget minus total spending for the selected month." />
                 <StatCard title={forecastTitle} value={forecast} currency={currency} tooltip="Projected spending for this month based on your current rate." />
                 <StatCard title="Transactions" value={filteredExpenses.length} isCurrency={false} currency={currency} />
             </div>
