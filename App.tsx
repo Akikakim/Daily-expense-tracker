@@ -1,3 +1,6 @@
+
+
+
 import React, { useState, useContext, useRef } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { AddExpenseModal } from './components/AddExpenseModal';
@@ -8,7 +11,8 @@ import { AuthContext } from './contexts/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { LicenseScreen } from './components/LicenseScreen';
 import { CURRENCIES } from './constants';
-import parseISO from 'date-fns/parseISO';
+// FIX: Changed date-fns import to use a named import to resolve module resolution issues.
+import { parseISO } from 'date-fns';
 
 const AuthenticatedApp: React.FC = () => {
     const { 

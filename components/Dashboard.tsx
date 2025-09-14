@@ -1,13 +1,21 @@
 import React, { useState, useMemo, useContext, useRef } from 'react';
-import type { Expense, Goal } from '../types';
+import type { Expense, Goal, Budget, Currency } from '../types';
 import { Category } from '../types';
 import { StatCard } from './StatCard';
 import { ExpenseChart } from './ExpenseChart';
 import { ExpenseList } from './ExpenseList';
 import { AIInsights } from './AIInsights';
 import { Budgets } from './Budgets';
-// FIX: Changed date-fns imports to use named imports from the main package to resolve module resolution issues.
-import { isSameMonth, isSameYear, format, getDaysInMonth, addMonths, subMonths, parseISO } from 'date-fns';
+// FIX: Changed date-fns imports to use named imports from the main package to resolve call signature errors.
+import {
+    isSameMonth,
+    isSameYear,
+    format,
+    getDaysInMonth,
+    addMonths,
+    subMonths,
+    parseISO,
+} from 'date-fns';
 import { AuthContext } from '../contexts/AuthContext';
 import { CATEGORIES, CATEGORY_DETAILS } from '../constants';
 import jsPDF from 'jspdf';
@@ -18,6 +26,168 @@ import { FinancialGoals } from './FinancialGoals';
 import { AddGoalModal } from './AddGoalModal';
 import { useGoals } from '../hooks/useGoals';
 import { SpendingTrendsChart } from './SpendingTrendsChart';
+import { TargetIcon } from './Icons';
+
+interface ReportTemplateProps {
+    expenses: Expense[];
+    allExpenses: Expense[];
+    budgets: Budget[];
+    goals: Goal[];
+    aiInsight: string | null;
+    currency: Currency;
+    user: { username: string };
+    period: string;
+    stats: {
+        totalExpense: number;
+        monthlySurplus: number;
+        monthlyForecast: number;
+        transactions: number;
+    };
+    expensesByCategory: { name: string; value: number }[];
+}
+
+const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>((props, ref) => {
+    const { expenses, allExpenses, budgets, goals, aiInsight, currency, user, period, stats, expensesByCategory } = props;
+
+    const spendingForReportPeriod = useMemo(() => expenses.reduce((acc, expense) => {
+        acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
+        return acc;
+    }, {} as Record<Category, number>), [expenses]);
+    
+    const activeBudgets = budgets.filter(b => b.amount > 0);
+
+    const formattedInsight = aiInsight
+        ?.replace(/### (.*?)\n/g, '<h3 class="text-lg font-semibold mt-4 mb-2 text-slate-700">$1</h3>')
+        .replace(/## (.*?)\n/g, '<h2 class="text-xl font-bold mt-4 mb-3 text-slate-800">$1</h2>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\* (.*?)\n/g, '<li class="ml-5 list-disc text-slate-600 mb-2">$1</li>');
+
+    return (
+         <div ref={ref} className="bg-white font-sans text-slate-900 w-[794px]">
+            {/* Page 1: Summary & Charts */}
+            <div className="report-page w-[794px] h-[1123px] p-10 flex flex-col bg-white">
+                <header className="flex justify-between items-center pb-4 border-b">
+                    <div>
+                        <h1 className="text-3xl font-bold text-slate-800">Expense Report</h1>
+                        <p className="text-slate-500">Report for: {user.username}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-slate-500">Period: {period}</p>
+                        <p className="text-slate-500">Generated on: {format(new Date(), 'MMMM d, yyyy')}</p>
+                    </div>
+                </header>
+                <section className="grid grid-cols-2 gap-6 my-8">
+                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Total Spending</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.totalExpense)}</p></div>
+                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Transactions</h3><p className="text-2xl font-bold text-slate-800 mt-1">{stats.transactions}</p></div>
+                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">Avg. Transaction</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.transactions > 0 ? stats.totalExpense / stats.transactions : 0)}</p></div>
+                     <div className="bg-slate-50 p-4 rounded-lg shadow-sm border"><h3 className="text-slate-500 font-medium">This Month's Savings</h3><p className="text-2xl font-bold text-slate-800 mt-1">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.monthlySurplus)}</p></div>
+                </section>
+                <section className="grid grid-cols-2 gap-8 flex-grow">
+                    <div className="bg-white p-4 rounded-lg shadow-md border flex flex-col">
+                        <h3 className="text-lg font-bold text-center mb-2">Spending by Category</h3>
+                        {expensesByCategory.length > 0 ? <ExpenseChart data={expensesByCategory} currency={currency} /> : <div className="h-full flex items-center justify-center text-slate-500">No data available</div>}
+                    </div>
+                    <div className="bg-white p-4 rounded-lg shadow-md border flex flex-col">
+                         <h3 className="text-lg font-bold text-center mb-2">Spending Trends (Last 6 Months)</h3>
+                         <SpendingTrendsChart allExpenses={allExpenses} currency={currency} />
+                    </div>
+                </section>
+                <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
+            </div>
+
+            {/* Page 2: AI Financial Assistant */}
+            <div className="report-page w-[794px] h-[1123px] p-10 flex flex-col bg-white">
+                <header className="pb-4 border-b">
+                    <h1 className="text-3xl font-bold text-primary-700 text-center">AI Financial Assistant</h1>
+                </header>
+                 {aiInsight ? (
+                     <div className="mt-8 text-base prose max-w-none" dangerouslySetInnerHTML={{ __html: formattedInsight || ''}} />
+                 ) : (
+                    <div className="flex-grow flex items-center justify-center text-slate-500">No AI insights available for this period.</div>
+                 )}
+                 <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
+            </div>
+            
+            {/* Page 3: Budgets & Goals */}
+            <div className="report-page w-[794px] h-[1123px] p-10 flex flex-col bg-white">
+                 <header className="pb-4 border-b">
+                    <h1 className="text-3xl font-bold text-slate-800">Monthly Budget Progress</h1>
+                </header>
+                <section className="my-8 space-y-5">
+                     {activeBudgets.length > 0 ? activeBudgets.map(budget => {
+                         const spent = spendingForReportPeriod[budget.category] || 0;
+                         const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0;
+                         const isOverBudget = percentage > 100;
+                         const barColor = isOverBudget ? 'bg-red-500' : CATEGORY_DETAILS[budget.category].color;
+                         return (
+                            <div key={budget.category}>
+                                <div className="flex justify-between items-center mb-1 text-sm"><span className="font-semibold text-slate-700">{budget.category}</span><span className={`font-medium ${isOverBudget ? 'text-red-600' : 'text-slate-500'}`}>{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(spent)} / {new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(budget.amount)}</span></div>
+                                <div className="w-full bg-slate-200 rounded-full h-2.5"><div className={`${barColor} h-2.5 rounded-full`} style={{ width: `${Math.min(percentage, 100)}%` }}></div></div>
+                            </div>
+                         );
+                     }) : <p className="text-center text-slate-500 py-8">No budgets have been set for this period.</p>}
+                </section>
+                <header className="pb-4 border-b mt-8">
+                    <h1 className="text-3xl font-bold text-slate-800">Financial Goals</h1>
+                </header>
+                <section className="my-8 space-y-6">
+                    {goals.length > 0 ? goals.map(goal => (
+                        <div key={goal.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="font-bold text-slate-800 text-lg">{goal.title}</p>
+                                    <p className="font-semibold text-primary-600 text-xl">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(goal.targetAmount)}</p>
+                                </div>
+                                <TargetIcon className="w-8 h-8 text-primary-400"/>
+                            </div>
+                            {goal.aiPlan && <div className="mt-3 text-sm text-slate-600 bg-primary-50 p-3 rounded-md border border-primary-200"><p className="font-semibold mb-1 text-primary-700">AI Savings Plan:</p><p>{goal.aiPlan}</p></div>}
+                        </div>
+                    )) : <p className="text-center text-slate-500 py-8">No financial goals have been set.</p>}
+                </section>
+                <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
+            </div>
+            
+             {/* Page 4: Transactions */}
+            <div className="report-page w-[794px] h-[1123px] p-10 flex flex-col bg-white">
+                 <header className="pb-4 border-b">
+                    <h1 className="text-3xl font-bold text-slate-800">Detailed Transactions</h1>
+                </header>
+                <table className="w-full text-left mt-8 border-collapse">
+                    <thead>
+                        <tr className="border-b-2 border-slate-300">
+                            <th className="p-2 text-sm font-semibold text-slate-600 w-1/4">Date</th>
+                            <th className="p-2 text-sm font-semibold text-slate-600 w-2/5">Title</th>
+                            <th className="p-2 text-sm font-semibold text-slate-600 w-1/5">Category</th>
+                            <th className="p-2 text-sm font-semibold text-slate-600 text-right w-auto">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {expenses.map((expense, index) => (
+                            <tr key={expense.id} className={`border-b border-slate-100 ${index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
+                                <td className="p-3 text-sm">{format(parseISO(expense.date), 'MMM d, yyyy')}</td>
+                                <td className="p-3 text-sm truncate">{expense.title}</td>
+                                <td className="p-3 text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`w-3 h-3 rounded-full ${CATEGORY_DETAILS[expense.category].color}`}></span>
+                                        {expense.category}
+                                    </div>
+                                </td>
+                                <td className="p-3 text-sm font-mono text-right">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(expense.amount)}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                        <tr className="border-t-2 border-slate-300">
+                            <td colSpan={3} className="p-3 text-right font-bold text-lg">Total</td>
+                            <td className="p-3 font-bold font-mono text-lg text-right">{new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(stats.totalExpense)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                <footer className="text-center text-xs text-slate-400 pt-4 mt-auto">Powered by Aqeel Serani Digital Agency</footer>
+            </div>
+         </div>
+    );
+});
 
 interface DashboardProps {
     expenses: Expense[];
@@ -50,10 +220,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
     const { goals, addGoal, deleteGoal } = useGoals();
     const [searchTerm, setSearchTerm] = useState('');
     const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All');
-    const chartContainerRef = useRef<HTMLDivElement>(null);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
     const [isAddGoalModalOpen, setIsAddGoalModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('category');
+    const reportRef = useRef<HTMLDivElement>(null);
 
 
     const { filteredExpenses, title } = useMemo(() => {
@@ -131,283 +301,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
 
     const downloadReport = async () => {
         setIsGeneratingReport(true);
-        try {
-            const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-            const pageWidth = pdf.internal.pageSize.getWidth();
-            const pageHeight = pdf.internal.pageSize.getHeight();
-            const margin = 40;
-            let yPos = 0;
-            let pageNumber = 1;
-
-            const addPageHeaderAndFooter = (page: number, totalPages: number) => {
-                 pdf.setPage(page);
-                pdf.setFontSize(8);
-                pdf.setTextColor(150);
-                pdf.text(`Page ${page} of ${totalPages}`, pageWidth - margin, pageHeight - 15, { align: 'right' });
-                pdf.text('Powered by Aqeel Serani Digital Agency', margin, pageHeight - 15);
-            };
-
-            // --- PAGE 1: SUMMARY ---
-            pdf.setPage(pageNumber);
-            yPos = margin;
-            pdf.setFont('helvetica', 'bold');
-            pdf.setFontSize(24);
-            pdf.text('Expense Report', pageWidth / 2, yPos, { align: 'center' });
-            yPos += 30;
-
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(12);
-            pdf.text(`Report for: ${currentUser?.username || 'N/A'}`, margin, yPos);
-            pdf.text(`Period: ${title.replace('Expenses for ', '')}`, pageWidth - margin, yPos, { align: 'right' });
-            yPos += 20;
-            pdf.text(`Generated on: ${format(new Date(), 'MMMM d, yyyy')}`, pageWidth - margin, yPos, { align: 'right' });
-
-            yPos += 20;
-            pdf.setLineWidth(0.5);
-            pdf.line(margin, yPos, pageWidth - margin, yPos);
-            yPos += 30;
-
-            // Stats Cards
-             const stats = [
-                { title: `Total Spending`, value: new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalExpense) },
-                { title: "Transactions", value: filteredExpenses.length.toLocaleString() },
-                { title: "Avg. Transaction", value: new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(filteredExpenses.length > 0 ? totalExpense / filteredExpenses.length : 0) },
-                { title: "This Month's Savings", value: new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(monthlySurplus) },
-            ];
-            const cardWidth = (pageWidth - margin * 3) / 2;
-            const cardHeight = 60;
-            stats.forEach((stat, index) => {
-                const x = margin + (index % 2) * (cardWidth + 20);
-                const y = yPos + Math.floor(index / 2) * (cardHeight + 20);
-                pdf.setFontSize(10);
-                pdf.setTextColor(100);
-                pdf.text(stat.title, x + 10, y + 20);
-                pdf.setFontSize(18);
-                pdf.setFont('helvetica', 'bold');
-                pdf.setTextColor(20);
-                pdf.text(stat.value, x + 10, y + 45);
-                pdf.setFont('helvetica', 'normal');
-                pdf.roundedRect(x, y, cardWidth, cardHeight, 5, 5, 'S');
-            });
-            yPos += Math.ceil(stats.length / 2) * (cardHeight + 20);
-            
-            // Spending Chart on Page 1
-            const chartElement = chartContainerRef.current;
-            if (chartElement && expensesByCategory.length > 0) {
-                 const canvas = await html2canvas(chartElement, { scale: 3, backgroundColor: '#ffffff' });
-                 const imgData = canvas.toDataURL('image/png');
-                 const availableHeight = pageHeight - yPos - margin - 20;
-                 const imgHeight = 250;
-                 const imgWidth = (canvas.width * imgHeight) / canvas.height;
-
-                 if (imgHeight < availableHeight) {
-                    yPos += 20;
-                    pdf.setFontSize(16);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.text('Spending by Category', pageWidth / 2, yPos, { align: 'center'});
-                    yPos += 20;
-                    pdf.addImage(imgData, 'PNG', (pageWidth - imgWidth) / 2, yPos, imgWidth, imgHeight);
-                 }
+        // Delay to allow the hidden report component to render with the latest data
+        setTimeout(async () => {
+            const reportElement = reportRef.current;
+            if (!reportElement) {
+                console.error("Report template element not found.");
+                setIsGeneratingReport(false);
+                alert("Could not generate report. Please try again.");
+                return;
             }
 
+            try {
+                const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
+                const pageElements = reportElement.querySelectorAll<HTMLElement>('.report-page');
+                const totalPages = pageElements.length;
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
 
-            // --- PAGE 2: BUDGETS & AI INSIGHTS ---
-            const hasBudgets = budgets.some(b => b.amount > 0);
-            if (hasBudgets || aiInsight) {
-                 pdf.addPage();
-                 pageNumber++;
-                 yPos = margin;
-            }
+                for (let i = 0; i < totalPages; i++) {
+                    const pageElement = pageElements[i];
+                    const canvas = await html2canvas(pageElement, {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff'
+                    });
+                    
+                    if (i > 0) pdf.addPage();
+                    const imgData = canvas.toDataURL('image/png');
+                    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
 
-            // Budget Summary
-            if (hasBudgets) {
-                pdf.setFontSize(18);
-                pdf.setFont('helvetica', 'bold');
-                pdf.text('Budget vs. Actuals Summary', margin, yPos);
-                yPos += 30;
-
-                const spendingByCategoryForReport = filteredExpenses.reduce((acc, expense) => {
-                    acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-                    return acc;
-                }, {} as Record<Category, number>);
-
-                const tableHeaderY = yPos;
-                pdf.setFontSize(10);
-                pdf.setFont('helvetica', 'bold');
-                pdf.setFillColor(240, 240, 240);
-                pdf.rect(margin, yPos, pageWidth - margin * 2, 20, 'F');
-                pdf.text('Category', margin + 5, yPos + 14);
-                pdf.text('Budgeted', margin + 200, yPos + 14);
-                pdf.text('Spent', margin + 300, yPos + 14);
-                pdf.text('Remaining', pageWidth - margin - 5, yPos + 14, { align: 'right' });
-                yPos += 25;
-
-                pdf.setFont('helvetica', 'normal');
-                let totalBudgeted = 0;
-                let totalSpent = 0;
-
-                CATEGORIES.forEach(cat => {
-                     const budget = budgets.find(b => b.category === cat)?.amount || 0;
-                     if (budget <= 0) return;
-                     
-                     totalBudgeted += budget;
-                     const spent = spendingByCategoryForReport[cat] || 0;
-                     totalSpent += spent;
-                     const remaining = budget - spent;
-
-                     pdf.text(cat, margin + 5, yPos + 14);
-                     pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(budget), margin + 200, yPos + 14);
-                     pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(spent), margin + 300, yPos + 14);
-                     
-                     pdf.setTextColor(remaining >= 0 ? [0, 100, 0] : [255, 0, 0]);
-                     pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(remaining), pageWidth - margin - 5, yPos + 14, { align: 'right' });
-                     pdf.setTextColor(0);
-
-                     yPos += 20;
-                });
-
-                yPos += 5;
-                pdf.setLineWidth(0.5);
-                pdf.line(margin, yPos, pageWidth - margin, yPos);
-                yPos += 5;
-
-                pdf.setFont('helvetica', 'bold');
-                const totalRemaining = totalBudgeted - totalSpent;
-                pdf.text('Totals', margin + 5, yPos + 14);
-                pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalBudgeted), margin + 200, yPos + 14);
-                pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalSpent), margin + 300, yPos + 14);
-                pdf.setTextColor(totalRemaining >= 0 ? [0, 100, 0] : [255, 0, 0]);
-                pdf.text(new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalRemaining), pageWidth - margin - 5, yPos + 14, { align: 'right' });
-                pdf.setTextColor(0);
-
-                yPos += 30;
-            }
-
-
-            if (aiInsight && !isAIInsightLoading) {
-                if(yPos > margin) { // Add divider if budgets were shown
-                    pdf.setLineWidth(0.5);
-                    pdf.line(margin, yPos, pageWidth - margin, yPos);
-                    yPos += 30;
+                    pdf.setPage(i + 1);
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(150, 150, 150);
+                    pdf.text(`Page ${i + 1} of ${totalPages}`, pdfWidth - 40, pdfHeight - 20, { align: 'right' });
                 }
-                
-                pdf.setFontSize(16);
-                pdf.setFont('helvetica', 'bold');
-                pdf.setTextColor(20);
-                pdf.text('AI Financial Assistant', margin, yPos);
-                yPos += 20;
 
-                pdf.setFontSize(10);
-                pdf.setFont('helvetica', 'normal');
-                pdf.setTextColor(50);
-                const lines = aiInsight.split('\n').filter(line => line.trim() !== '');
-                lines.forEach(line => {
-                    const maxWidth = pageWidth - margin * 2;
-                    let textToAdd = line;
-                    let isBold = false;
-
-                    if (line.startsWith('### ') || line.startsWith('## ')) {
-                        isBold = true;
-                        textToAdd = line.replace(/### |## /g, '');
-                    }
-                     if (line.startsWith('* ')) {
-                        textToAdd = '• ' + line.substring(2);
-                    }
-                    
-                    if (isBold) pdf.setFont('helvetica', 'bold');
-
-                    const splitLines = pdf.splitTextToSize(textToAdd, maxWidth);
-                    const requiredHeight = splitLines.length * 12 + 5;
-                    if (yPos + requiredHeight > pageHeight - margin) {
-                        pdf.addPage(); pageNumber++; yPos = margin;
-                    }
-                    pdf.text(splitLines, margin, yPos);
-                    yPos += requiredHeight;
-
-                    if (isBold) pdf.setFont('helvetica', 'normal');
-                });
+                pdf.save(`Expense-Report-${format(currentDate, 'yyyy-MM')}.pdf`);
+            } catch (error) {
+                console.error("Error generating PDF:", error);
+                alert("Sorry, there was an error generating the PDF report.");
+            } finally {
+                setIsGeneratingReport(false);
             }
-
-            // --- PAGE 3+: TRANSACTIONS ---
-            if (filteredExpenses.length > 0) {
-                pdf.addPage();
-                pageNumber++;
-                yPos = margin;
-
-                const drawPageHeader = () => {
-                    pdf.setFontSize(18);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.text('Detailed Transactions', margin, yPos);
-                    yPos += 30;
-                };
-
-                const drawTableHeader = () => {
-                    pdf.setFontSize(10);
-                    pdf.setFont('helvetica', 'bold');
-                    pdf.setFillColor(240, 240, 240);
-                    pdf.rect(margin, yPos, pageWidth - margin * 2, 20, 'F');
-                    pdf.text('Date', margin + 5, yPos + 14);
-                    pdf.text('Title', margin + 100, yPos + 14);
-                    pdf.text('Category', margin + 300, yPos + 14);
-                    pdf.text('Amount', pageWidth - margin - 5, yPos + 14, { align: 'right' });
-                    yPos += 25;
-                };
-
-                drawPageHeader();
-                drawTableHeader();
-
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(10);
-                filteredExpenses.forEach(expense => {
-                    if (yPos > pageHeight - margin - 40) { // reserve space for footer and total
-                        pdf.addPage();
-                        pageNumber++;
-                        yPos = margin;
-                        drawPageHeader();
-                        drawTableHeader();
-                        pdf.setFont('helvetica', 'normal');
-                        pdf.setFontSize(10);
-                    }
-                    const dateStr = format(parseISO(expense.date), 'MMM d, yyyy');
-                    const amountStr = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(expense.amount);
-
-                    pdf.text(dateStr, margin + 5, yPos + 14);
-                    pdf.text(expense.title, margin + 100, yPos + 14, { maxWidth: 190 });
-                    pdf.text(expense.category, margin + 300, yPos + 14);
-                    pdf.text(amountStr, pageWidth - margin - 5, yPos + 14, { align: 'right' });
-                    
-                    yPos += 20;
-                    pdf.setLineWidth(0.2);
-                    pdf.line(margin, yPos, pageWidth - margin, yPos);
-                    yPos += 5;
-                });
-
-                // Add Total Row
-                yPos += 10;
-                pdf.setLineWidth(0.5);
-                pdf.line(margin, yPos, pageWidth - margin, yPos);
-                yPos += 5;
-
-                pdf.setFont('helvetica', 'bold');
-                const totalAmountStr = new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.code }).format(totalExpense);
-                pdf.text('Total', pageWidth - margin - 150, yPos + 14, { align: 'right' });
-                pdf.text(totalAmountStr, pageWidth - margin - 5, yPos + 14, { align: 'right' });
-
-            }
-
-            // --- Add Page Numbers ---
-            const pageCount = pdf.internal.getNumberOfPages();
-            for (let i = 1; i <= pageCount; i++) {
-                addPageHeaderAndFooter(i, pageCount);
-            }
-
-            pdf.save(`report-${format(currentDate, 'yyyy-MM')}.pdf`);
-        } catch (error) {
-            console.error("Failed to generate PDF report:", error);
-            alert("Sorry, there was an error generating the PDF report. Please try again.");
-        } finally {
-            setIsGeneratingReport(false);
-        }
+        }, 500);
     };
 
     return (
@@ -461,12 +398,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                 </div>
                 <div>
                     {activeTab === 'category' && (
-                         <div ref={chartContainerRef}>
+                         <div>
                             <ExpenseChart data={expensesByCategory} currency={currency} />
                         </div>
                     )}
                      {activeTab === 'trends' && (
-                        <SpendingTrendsChart allExpenses={expenses} currency={currency} />
+                        <div>
+                            <SpendingTrendsChart allExpenses={expenses} currency={currency} />
+                        </div>
                     )}
                     {activeTab === 'ai' && (
                          <AIInsights onGenerate={handleGetAIInsights} insight={aiInsight} isLoading={isAIInsightLoading} />
@@ -493,6 +432,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ expenses, onEditExpense, o
                     onSave={handleSaveGoal}
                     expenses={monthlyExpenses}
                 />
+            )}
+            
+            {/* Hidden container for PDF generation */}
+             {isGeneratingReport && (
+                <div className="absolute -left-[9999px] top-auto">
+                    <ReportTemplate
+                        ref={reportRef}
+                        expenses={filteredExpenses}
+                        allExpenses={expenses}
+                        budgets={budgets}
+                        goals={goals}
+                        aiInsight={aiInsight}
+                        currency={currency}
+                        user={{ username: currentUser?.username || 'User' }}
+                        period={format(currentDate, 'MMMM yyyy')}
+                        stats={{ totalExpense, monthlySurplus, monthlyForecast, transactions: filteredExpenses.length }}
+                        expensesByCategory={expensesByCategory}
+                    />
+                </div>
             )}
         </div>
     );

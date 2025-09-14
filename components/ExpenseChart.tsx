@@ -36,6 +36,7 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({ data, currency }) =>
                         fill="#8884d8"
                         dataKey="value"
                         nameKey="name"
+                        isAnimationActive={false}
                     >
                         {chartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />

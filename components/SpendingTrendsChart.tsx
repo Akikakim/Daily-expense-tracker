@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import type { Expense, Currency } from '../types';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-// FIX: Changed date-fns imports to use named imports from the main package to resolve module resolution issues.
-import { 
+// FIX: Changed date-fns imports to use named imports from the main package to resolve call signature errors.
+import {
     format,
     isAfter,
     subMonths,
     startOfMonth,
-    parseISO
+    parseISO,
 } from 'date-fns';
 import { TrendingUpIcon } from './Icons';
 

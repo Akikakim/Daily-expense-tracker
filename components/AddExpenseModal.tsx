@@ -5,7 +5,7 @@ import { CATEGORIES } from '../constants';
 import { AuthContext } from '../contexts/AuthContext';
 import { scanReceipt } from '../services/geminiService';
 import { CameraIcon } from './Icons';
-// FIX: Changed date-fns import to use a named import from the main package to resolve module resolution issues.
+// FIX: Changed date-fns import to use a named import to resolve module resolution errors.
 import { format } from 'date-fns';
 
 interface AddExpenseModalProps {

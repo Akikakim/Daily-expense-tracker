@@ -2,7 +2,7 @@ import React from 'react';
 import type { Expense, Currency } from '../types';
 import { CATEGORY_DETAILS } from '../constants';
 import { EditIcon, DeleteIcon } from './Icons';
-// FIX: Changed date-fns imports to use named imports from the main package to resolve module resolution issues.
+// FIX: Changed date-fns imports to use named imports from the main package to resolve call signature errors.
 import { format, parseISO } from 'date-fns';
 
 interface ExpenseListProps {
